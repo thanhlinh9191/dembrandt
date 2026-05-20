@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>dembrandt gold labeler</title>
+  <style>
+    :root {
+      --bg: #0f0f10;
+      --panel: #1a1a1d;
+      --border: #2a2a2f;
+      --text: #e8e8ea;
+      --muted: #9090a0;
+      --accent: #635bff;
+      --green: #22c55e;
+      --red: #ef4444;
+      --amber: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+    header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 49px;
+    }
+    header h1 { font-size: 14px; margin: 0; font-weight: 600; }
+    header .meta { color: var(--muted); font-size: 12px; }
+    header .right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+    .timer { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
+    .progress-bar { width: 140px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--green); transition: width .3s; }
+    .progress-step { height: 100%; background: var(--accent); transition: width .25s; }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 540px;
+      gap: 20px;
+      padding: 20px;
+      height: calc(100vh - 49px);
+      overflow: hidden;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: auto;
+      position: relative;
+    }
+    .screenshot { padding: 0; display: flex; align-items: center; justify-content: center; }
+    .screenshot img { max-width: 100%; max-height: 100%; display: block; }
+
+    .empty { color: var(--muted); padding: 40px; text-align: center; }
+    .empty.spinner::before {
+      content: ''; display: inline-block; width: 14px; height: 14px;
+      border: 2px solid var(--muted); border-top-color: transparent;
+      border-radius: 50%; animation: spin .8s linear infinite;
+      vertical-align: -2px; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* card */
+    .card {
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      animation: slideIn .25s ease-out;
+    }
+    .card.exit-right { animation: slideOutRight .2s ease-in forwards; }
+    .card.exit-left { animation: slideOutLeft .2s ease-in forwards; }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideOutRight {
+      to { opacity: 0; transform: translateX(80px) rotate(2deg); }
+    }
+    @keyframes slideOutLeft {
+      to { opacity: 0; transform: translateX(-80px) rotate(-2deg); }
+    }
+
+    .card-step-bar { display: flex; gap: 4px; margin-bottom: 16px; }
+    .card-step-bar div { flex: 1; height: 3px; background: var(--border); border-radius: 2px; }
+    .card-step-bar div.done { background: var(--green); }
+    .card-step-bar div.current { background: var(--accent); }
+
+    .card-eyebrow { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-bottom: 6px; }
+    .card-title { font-size: 22px; font-weight: 600; margin: 0 0 8px; line-height: 1.25; }
+    .card-subtitle { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+
+    .card-body { flex: 1; overflow: auto; }
+    .card-actions {
+      display: flex;
+      gap: 10px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      margin-top: 16px;
+    }
+
+    .big-color {
+      width: 100%;
+      height: 180px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+      display: flex;
+      align-items: flex-end;
+      padding: 16px;
+      font-family: ui-monospace, monospace;
+      font-size: 18px;
+      font-weight: 600;
+      text-shadow: 0 1px 3px rgba(0,0,0,.4);
+      margin-bottom: 16px;
+    }
+    .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+    .swatch-pick {
+      cursor: pointer;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      background: rgba(255,255,255,.04);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      align-items: center;
+      transition: border-color .12s, transform .12s;
+    }
+    .swatch-pick:hover { border-color: rgba(255,255,255,.2); transform: translateY(-1px); }
+    .swatch-pick.selected { border-color: var(--green); }
+    .swatch-pick.selected::after { content: '✓'; position: absolute; }
+    .swatch-pick-color { width: 100%; height: 56px; border-radius: 4px; border: 1px solid rgba(255,255,255,.06); }
+    .swatch-pick-hex { font-family: ui-monospace, monospace; color: var(--text); font-size: 11px; }
+    .swatch-pick-meta { color: var(--muted); font-size: 10px; }
+    .swatch-pick-num { font-size: 9px; color: var(--muted); background: rgba(255,255,255,.05); padding: 1px 4px; border-radius: 3px; }
+    .swatch-pick.ai { border: 2px dashed rgba(99, 91, 255, .45); }
+    .swatch-pick.ai .ai-badge { font-size: 9px; color: var(--accent); background: rgba(99, 91, 255, .12); padding: 1px 4px; border-radius: 3px; font-weight: 600; }
+    .font-chip.ai { border: 2px dashed rgba(99, 91, 255, .45); }
+    .font-chip.ai::after { content: ' AI'; font-size: 9px; color: var(--accent); margin-left: 4px; }
+    .ai-status { font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,.03); }
+    .ai-status.thinking::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-right: 5px; animation: pulse 1.4s ease-in-out infinite; }
+    .ai-status.ready::before { content: '✓ '; color: var(--green); }
+    .ai-status.error::before { content: '⚠ '; color: var(--amber); }
+    .ai-note { font-size: 11px; color: var(--muted); margin-top: 6px; padding: 6px 8px; background: rgba(99, 91, 255, .06); border-radius: 4px; border-left: 2px solid var(--accent); }
+
+    .big-logo {
+      width: 100%;
+      max-height: 200px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+    .big-logo img { max-width: 100%; max-height: 150px; }
+    .big-logo-url { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); word-break: break-all; margin-bottom: 16px; }
+
+    .big-font {
+      width: 100%;
+      padding: 28px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .big-font-sample { font-size: 36px; font-weight: 500; margin-bottom: 6px; }
+    .big-font-name { font-family: ui-monospace, monospace; color: var(--muted); font-size: 12px; }
+    .font-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .font-chip {
+      cursor: pointer;
+      padding: 8px 12px;
+      background: rgba(255,255,255,.04);
+      border: 2px solid transparent;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: border-color .12s;
+    }
+    .font-chip:hover { border-color: rgba(255,255,255,.2); }
+    .font-chip.selected { border-color: var(--green); }
+    .font-chip-context { color: var(--muted); font-size: 10px; margin-left: 4px; }
+
+    input[type=text], textarea {
+      width: 100%;
+      padding: 9px 11px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    input[type=text]:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .field { margin-bottom: 12px; }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: filter .12s, transform .12s;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-yes { background: var(--green); color: #042b0e; flex: 1; }
+    .btn-no { background: rgba(255,255,255,.06); color: var(--text); flex: 1; }
+    .btn-skip { background: rgba(255,255,255,.04); color: var(--muted); }
+    .btn-primary { background: var(--accent); color: #fff; flex: 1; }
+    .btn-secondary { background: rgba(255,255,255,.06); color: var(--text); }
+    .btn-danger { background: var(--red); color: #fff; }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 4px;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .hints { display: flex; gap: 12px; font-size: 11px; color: var(--muted); justify-content: center; margin-top: 8px; }
+
+    .ref-links { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .ref-links a, .ref-links button {
+      font-size: 11px;
+      padding: 5px 9px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color .12s;
+    }
+    .ref-links a:hover, .ref-links button:hover { border-color: var(--accent); color: #bcb6ff; }
+    .ref-links a::before { content: '↗ '; color: var(--muted); }
+    .ref-links button { font-family: inherit; font-weight: normal; }
+    .ref-links button::before { content: '⤴ '; color: var(--muted); }
+
+    .review-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .review-item {
+      padding: 12px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .review-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    .review-value { font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
+    .review-value.empty { color: var(--muted); font-style: italic; }
+    .review-swatch { display: inline-block; width: 18px; height: 18px; border-radius: 3px; vertical-align: -4px; margin-right: 6px; border: 1px solid rgba(255,255,255,.1); }
+
+    .toast {
+      position: fixed; top: 16px; right: 16px;
+      padding: 10px 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      font-size: 13px;
+      z-index: 100;
+      animation: slideDownIn .25s ease-out;
+    }
+    .toast.green { border-color: var(--green); }
+    .toast.amber { border-color: var(--amber); }
+    @keyframes slideDownIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .prefetch-status {
+      font-size: 10px;
+      color: var(--muted);
+      font-family: ui-monospace, monospace;
+    }
+    .pulse {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--amber); margin-right: 4px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .pulse.green { background: var(--green); animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: .4; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>dembrandt gold labeler</h1>
+    <span class="meta" id="status-text">loading...</span>
+    <div class="right">
+      <span class="timer" id="timer">0s</span>
+      <span class="ai-status" id="ai-status" style="display:none"></span>
+      <span class="prefetch-status" id="prefetch-status"></span>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <button class="btn-skip" id="btn-skip-site">Skip site</button>
+    </div>
+  </header>
+  <main>
+    <div class="panel screenshot" id="screenshot-panel">
+      <div class="empty spinner">extracting...</div>
+    </div>
+    <div class="panel" id="card-panel">
+      <div class="empty">loading queue...</div>
+    </div>
+  </main>
+
+  <script>
+  const state = {
+    queue: [],
+    queueIndex: 0,
+    viewport: null,
+    current: {
+      url: null,
+      hint: null,
+      domain: null,
+      extraction: null,
+      cards: [],
+      cardIndex: 0,
+      collected: null,
+      startTime: null,
+    },
+    prefetched: new Set(),
+    stats: {
+      sitesDone: 0,
+      totalMs: 0,
+      perSite: [],
+    },
+  };
+
+  // ---- helpers ----
+  async function fetchJson(url, opts) {
+    const res = await fetch(url, opts);
+    if (!res.ok) throw new Error(`${url}: ${res.status}`);
+    return res.json();
+  }
+  function normHex(c) {
+    if (!c) return null;
+    const s = String(c).trim();
+    let m = s.match(/^#?([0-9a-f]{3})$/i);
+    if (m) {
+      const [r, g, b] = m[1].split('');
+      return ('#' + r + r + g + g + b + b).toLowerCase();
+    }
+    m = s.match(/^#?([0-9a-f]{6})([0-9a-f]{2})?$/i);
+    if (m) return ('#' + m[1]).toLowerCase();
+    m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (m) {
+      const h = n => Number(n).toString(16).padStart(2, '0');
+      return ('#' + h(m[1]) + h(m[2]) + h(m[3])).toLowerCase();
+    }
+    return null;
+  }
+  function domainOf(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+  }
+  function readableTextColor(hex) {
+    const h = normHex(hex);
+    if (!h) return '#000';
+    const r = parseInt(h.slice(1, 3), 16);
+    const g = parseInt(h.slice(3, 5), 16);
+    const b = parseInt(h.slice(5, 7), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#000' : '#fff';
+  }
+  function toast(msg, kind = '') {
+    const t = document.createElement('div');
+    t.className = 'toast ' + kind;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2400);
+  }
+
+  // ---- queue + extraction ----
+  async function loadQueue() {
+    const status = await fetchJson('/api/status');
+    state.viewport = status.viewport;
+    document.getElementById('progress-fill').style.width = ((status.done / status.total) * 100) + '%';
+    return status;
+  }
+
+  async function ensureExtraction(url) {
+    if (state.current.url === url && state.current.extraction) return state.current.extraction;
+    setPrefetchStatus(url, 'extracting');
+    const e = await fetchJson('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    state.prefetched.add(url);
+    setPrefetchStatus(url, 'ready');
+    return e;
+  }
+
+  function setPrefetchStatus(url, status) {
+    const el = document.getElementById('prefetch-status');
+    if (!el) return;
+    if (status === 'extracting') el.innerHTML = `<span class="pulse"></span> extracting ${domainOf(url)}`;
+    else if (status === 'ready') el.innerHTML = `<span class="pulse green"></span> ${domainOf(url)} ready`;
+    else el.innerHTML = '';
+  }
+
+  async function triggerAiSuggest(url, screenshotPath) {
+    const el = document.getElementById('ai-status');
+    el.style.display = 'inline-block';
+    el.className = 'ai-status thinking';
+    el.textContent = 'AI thinking...';
+    try {
+      const r = await fetchJson('/api/ai-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, screenshotPath }),
+      });
+      state.current.aiSuggestions = r;
+      if (r.error) {
+        el.className = 'ai-status error';
+        el.textContent = 'AI: ' + r.error.slice(0, 40);
+      } else if (r.enabled === false) {
+        el.className = 'ai-status error';
+        el.textContent = 'AI off (no key)';
+      } else {
+        el.className = 'ai-status ready';
+        el.textContent = `AI (${r.provider})`;
+        // rebuild cards to include AI candidates, preserve position
+        const curIdx = state.current.cardIndex;
+        state.current.cards = buildCards(state.current.extraction);
+        state.current.cardIndex = Math.min(curIdx, state.current.cards.length - 1);
+        renderCard();
+      }
+    } catch (e) {
+      el.className = 'ai-status error';
+      el.textContent = 'AI failed: ' + e.message.slice(0, 30);
+    }
+  }
+
+  async function triggerPrefetch(nextUrls) {
+    const toFetch = nextUrls.filter(u => !state.prefetched.has(u));
+    if (toFetch.length === 0) return;
+    toFetch.forEach(u => state.prefetched.add(u));
+    fetch('/api/prefetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: toFetch }),
+    }).catch(() => {});
+  }
+
+  // ---- card flow ----
+  function buildCards(extraction) {
+    const c = (extraction.colors || {});
+    let palette = (c.palette || []).slice(0, 18).map(p => ({
+      hex: normHex(p.color),
+      count: p.count,
+      confidence: p.confidence,
+    })).filter(p => p.hex);
+    const semantic = c.semantic || {};
+    const fonts = [];
+    const seenFont = new Set();
+    for (const s of (extraction.typography?.styles || [])) {
+      const fam = (s.family || '').replace(/['"]/g, '').split(',')[0].trim();
+      if (!fam || seenFont.has(fam.toLowerCase())) continue;
+      seenFont.add(fam.toLowerCase());
+      fonts.push({ family: fam, context: s.context });
+      if (fonts.length >= 10) break;
+    }
+    const logos = [];
+    if (extraction.logo?.url) logos.push({ url: extraction.logo.url, label: 'main logo' });
+    for (const f of (extraction.favicons || []).slice(0, 4)) if (f.url) logos.push({ url: f.url, label: 'favicon' });
+
+    // Merge AI-suggested colors and fonts to the front of their lists
+    const ai = state.current.aiSuggestions;
+    if (ai && !ai.error && ai.enabled !== false) {
+      const aiHexes = [];
+      const seenHex = new Set(palette.map(p => p.hex));
+      const tryAdd = (h, label) => {
+        const n = normHex(h);
+        if (!n || seenHex.has(n)) return;
+        seenHex.add(n);
+        aiHexes.push({ hex: n, ai: true, aiLabel: label });
+      };
+      tryAdd(ai.primary_hex, 'AI primary');
+      tryAdd(ai.secondary_hex, 'AI secondary');
+      for (const h of (ai.additional_brand_hexes || [])) tryAdd(h, 'AI brand');
+      palette = [...aiHexes, ...palette];
+
+      if (ai.primary_font_guess) {
+        const fn = String(ai.primary_font_guess).replace(/['"]/g, '').trim();
+        if (fn && !seenFont.has(fn.toLowerCase())) {
+          fonts.unshift({ family: fn, context: 'AI guess', ai: true });
+          seenFont.add(fn.toLowerCase());
+        }
+      }
+    }
+
+    const cards = [];
+
+    // step 1: confirm primary
+    if (semantic.primary && normHex(semantic.primary)) {
+      cards.push({
+        type: 'confirm-color',
+        title: 'Onko tämä Stripen primary color?'.replace('Stripen', state.current.domain),
+        subtitle: 'Dembrandt arvasi tämän. Jos kyllä, paina YES. Jos ei, valitse palettista.',
+        candidate: normHex(semantic.primary),
+        field: 'primary',
+        nextOnYes: 'secondary',
+        nextOnNo: 'pick-primary',
+      });
+    } else {
+      cards.push({
+        type: 'pick-color',
+        title: `Valitse primary color`,
+        subtitle: 'Dembrandt ei arvannut. Klikkaa oikea, tai kirjoita hex.',
+        palette,
+        field: 'primary',
+        next: 'secondary',
+      });
+    }
+
+    // pick-primary fallback (inserted dynamically when needed)
+    cards.push({
+      type: 'pick-color',
+      title: 'Valitse primary palettista',
+      subtitle: 'Klikkaa oikea swatch, tai paina S skipataksesi.',
+      palette,
+      field: 'primary',
+      next: 'secondary',
+      cardKey: 'pick-primary',
+    });
+
+    // step 2: confirm/pick secondary
+    if (semantic.secondary && normHex(semantic.secondary)) {
+      cards.push({
+        type: 'confirm-color',
+        title: 'Secondary color?',
+        subtitle: 'Vahvistus, tai valitse palettista. Skip = ei sekundääriä.',
+        candidate: normHex(semantic.secondary),
+        field: 'secondary',
+        nextOnYes: 'palette',
+        nextOnNo: 'pick-secondary',
+        canSkip: true,
+        cardKey: 'secondary',
+      });
+    } else {
+      cards.push({
+        type: 'pick-color',
+        title: 'Secondary color (valinnainen)',
+        subtitle: 'Klikkaa oikea, tai paina S skipataksesi.',
+        palette,
+        field: 'secondary',
+        next: 'palette',
+        canSkip: true,
+        cardKey: 'secondary',
+      });
+    }
+    cards.push({
+      type: 'pick-color',
+      title: 'Valitse secondary palettista',
+      subtitle: 'Klikkaa oikea swatch, tai S = ei sekundääriä.',
+      palette,
+      field: 'secondary',
+      next: 'palette',
+      canSkip: true,
+      cardKey: 'pick-secondary',
+    });
+
+    // step 3: brand palette (multi-pick)
+    cards.push({
+      type: 'multi-pick',
+      title: 'Mitkä kuuluvat brändipalettiin?',
+      subtitle: 'Klikkaa kaikki brändivärit (multi-select). Skip jos ei lisää.',
+      palette,
+      field: 'brandPalette',
+      next: 'logo',
+      canSkip: true,
+      cardKey: 'palette',
+    });
+
+    // step 4: logo
+    if (logos.length > 0) {
+      cards.push({
+        type: 'confirm-logo',
+        title: 'Onko tämä oikea logo?',
+        subtitle: 'Klikkaa läpi vaihtoehtoja. NO = seuraava ehdokas. Markup-paste alimpana.',
+        logos,
+        field: 'logoUrl',
+        nextOnYes: 'font',
+        nextOnNo: 'logo-paste',
+        canSkip: true,
+        cardKey: 'logo',
+      });
+    }
+    cards.push({
+      type: 'logo-paste',
+      title: 'Liitä logo URL tai markup',
+      subtitle: 'Liitä image URL, brand-resurssin linkki, tai outerHTML logo-elementistä.',
+      field: 'logoUrl',
+      next: 'font',
+      canSkip: true,
+      cardKey: 'logo-paste',
+    });
+
+    // step 5: primary font
+    if (fonts.length > 0) {
+      cards.push({
+        type: 'confirm-font',
+        title: `Primary font: ${fonts[0].family}?`,
+        subtitle: 'Vahvistus, tai valitse listasta. Skip jos ei tiedossa.',
+        candidate: fonts[0],
+        alternatives: fonts.slice(1, 8),
+        field: 'primaryFont',
+        nextOnYes: 'font-secondary',
+        nextOnNo: 'pick-font',
+        canSkip: true,
+        cardKey: 'font',
+      });
+    } else {
+      cards.push({
+        type: 'pick-font',
+        title: 'Primary font',
+        subtitle: 'Dembrandt ei ehdota mitään. Kirjoita itse tai skip.',
+        fonts: [],
+        field: 'primaryFont',
+        next: 'font-secondary',
+        canSkip: true,
+        cardKey: 'font',
+      });
+    }
+    cards.push({
+      type: 'pick-font',
+      title: 'Valitse primary font',
+      subtitle: 'Klikkaa listasta tai kirjoita itse.',
+      fonts: fonts.slice(0, 10),
+      field: 'primaryFont',
+      next: 'font-secondary',
+      canSkip: true,
+      cardKey: 'pick-font',
+    });
+
+    // step 6: secondary font (always optional)
+    cards.push({
+      type: 'pick-font',
+      title: 'Secondary font (valinnainen)',
+      subtitle: 'Esim. mono code-fontille. Skip jos ei.',
+      fonts: fonts.slice(0, 10),
+      field: 'secondaryFont',
+      next: 'review',
+      canSkip: true,
+      cardKey: 'font-secondary',
+    });
+
+    // step 7: review + save
+    cards.push({
+      type: 'review',
+      title: 'Tarkista ja tallenna',
+      subtitle: 'Enter tallentaa ja siirtyy seuraavaan.',
+      next: 'save',
+      cardKey: 'review',
+    });
+
+    return cards;
+  }
+
+  function cardByKey(key) {
+    return state.current.cards.find(c => c.cardKey === key);
+  }
+
+  function gotoCard(key) {
+    if (key === 'save') return saveAndNext();
+    const idx = state.current.cards.findIndex(c => c.cardKey === key);
+    if (idx >= 0) {
+      state.current.cardIndex = idx;
+      renderCard();
+      return;
+    }
+    // no explicit key: advance to next non-branch card
+    advanceCard();
+  }
+
+  function advanceCard() {
+    let i = state.current.cardIndex + 1;
+    while (i < state.current.cards.length) {
+      const c = state.current.cards[i];
+      // skip branch fallback cards unless we routed to them
+      if (c.cardKey && c.cardKey.startsWith('pick-')) { i++; continue; }
+      state.current.cardIndex = i;
+      renderCard();
+      return;
+    }
+    saveAndNext();
+  }
+
+  // ---- per-card renderers ----
+  function renderCard() {
+    const idx = state.current.cardIndex;
+    const card = state.current.cards[idx];
+    if (!card) { return saveAndNext(); }
+    const panel = document.getElementById('card-panel');
+    panel.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = renderCardInner(card, idx);
+    panel.appendChild(div);
+    bindCard(card);
+    updateStepBar();
+  }
+
+  function updateStepBar() {
+    // step bar shows progress across distinct cardKeys we've passed
+    const totalKeys = new Set();
+    state.current.cards.forEach(c => { if (c.cardKey && !c.cardKey.startsWith('pick-')) totalKeys.add(c.cardKey); });
+    // not strictly used; the bar inline below in renderCardInner uses it
+  }
+
+  function renderCardInner(card, idx) {
+    const mainKeys = state.current.cards
+      .filter(c => c.cardKey && !c.cardKey.startsWith('pick-'))
+      .map(c => c.cardKey);
+    const current = card.cardKey && !card.cardKey.startsWith('pick-') ? card.cardKey : null;
+    const collected = state.current.collected || {};
+    const passedKeys = mainKeys.filter(k => collected[k + ':done']);
+    const bar = mainKeys.map(k => {
+      const cls = passedKeys.includes(k) ? 'done' : (k === current ? 'current' : '');
+      return `<div class="${cls}"></div>`;
+    }).join('');
+
+    const eyebrow = `Site ${state.queueIndex + 1}/${state.queue.length} · ${state.current.domain}`;
+    const refLinks = renderRefLinks();
+
+    let body = '';
+    let actions = '';
+
+    switch (card.type) {
+      case 'confirm-color': {
+        const txt = readableTextColor(card.candidate);
+        body = `
+          <div class="big-color" style="background:${card.candidate};color:${txt}">${card.candidate}</div>
+          ${renderAiNote()}
+          ${renderPaletteGrid(card.palette || [], { selected: card.candidate })}
+        `;
+        actions = `
+          <button class="btn-yes" data-action="yes">✓ YES <span class="kbd">→</span></button>
+          <button class="btn-no" data-action="no">✗ Toinen <span class="kbd">←</span></button>
+          ${card.canSkip ? '<button class="btn-skip" data-action="skip">Skip <span class="kbd">S</span></button>' : ''}
+        `;
+        break;
+      }
+      case 'pick-color': {
+        body = `
+          ${renderAiNote()}
+          ${renderPaletteGrid(card.palette || [], { numbered: true, selected: (collected[card.field]) })}
+          <div class="field" style="margin-top:12px">
+            <label>tai kirjoita hex manuaalisesti</label>
+            <input type="text" id="manual-hex" placeholder="#635bff" value="${collected[card.field] || ''}">
+          </div>
+        `;
+        actions = `
+          <button class="btn-primary" data-action="confirm">Vahvista <span class="kbd">↵</span></button>
+          ${card.canSkip ? '<button class="btn-skip" data-action="skip">Skip <span class="kbd">S</span></button>' : ''}
+        `;
+        break;
+      }
+      case 'multi-pick': {
+        const sel = collected[card.field] || [];
+        body = `
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Klikkaa kaikki brändivärit. Valittuja: <span id="multi-count">${sel.length}</span></div>
+          ${renderAiNote()}
+          ${renderPaletteGrid(card.palette || [], { multi: true, selectedMulti: sel })}
+        `;
+        actions = `
+          <button class="btn-primary" data-action="confirm">Vahvista <span class="kbd">↵</span></button>
+          ${card.canSkip ? '<button class="btn-skip" data-action="skip">Skip <span class="kbd">S</span></button>' : ''}
+        `;
+        break;
+      }
+      case 'confirm-logo': {
+        const logoIdx = (collected._logoCandidateIdx) || 0;
+        const current = card.logos[logoIdx];
+        body = `
+          <div class="big-logo"><img src="${current.url}" alt="${current.label}" onerror="this.style.display='none'"></div>
+          <div class="big-logo-url">${current.url}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Ehdokas ${logoIdx + 1}/${card.logos.length} · ${current.label}</div>
+        `;
+        actions = `
+          <button class="btn-yes" data-action="yes">✓ YES <span class="kbd">→</span></button>
+          <button class="btn-no" data-action="no">${logoIdx + 1 < card.logos.length ? 'Seuraava ehdokas' : 'Liitä itse'} <span class="kbd">←</span></button>
+          <button class="btn-skip" data-action="skip">Skip <span class="kbd">S</span></button>
+        `;
+        break;
+      }
+      case 'logo-paste': {
+        body = `
+          <div class="field">
+            <label>Logo URL (image URL, brand-resurssi, mikä tahansa)</label>
+            <input type="text" id="logo-url" placeholder="https://example.com/logo.svg" value="${collected.logoUrl || ''}">
+          </div>
+          <div class="field">
+            <label>tai outerHTML logo-elementistä</label>
+            <textarea id="logo-markup" placeholder='&lt;img src="/logo.svg"&gt; tai &lt;svg&gt;...&lt;/svg&gt;'>${collected.logoMarkup || ''}</textarea>
+            <div id="markup-hint" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          </div>
+        `;
+        actions = `
+          <button class="btn-primary" data-action="confirm">Vahvista <span class="kbd">↵</span></button>
+          <button class="btn-skip" data-action="skip">Skip <span class="kbd">S</span></button>
+        `;
+        break;
+      }
+      case 'confirm-font': {
+        body = `
+          <div class="big-font">
+            <div class="big-font-sample" style="font-family:'${card.candidate.family}', system-ui, sans-serif">The quick brown fox</div>
+            <div class="big-font-name">${card.candidate.family}${card.candidate.context ? ' · ' + card.candidate.context : ''}${card.candidate.ai ? ' · AI' : ''}</div>
+          </div>
+          ${renderAiNote()}
+          <div class="font-chips">
+            ${(card.alternatives || []).map((f, i) => `<span class="font-chip ${f.ai ? 'ai' : ''}" data-font="${f.family}">${i + 1}. ${f.family}<span class="font-chip-context">${f.context || ''}</span></span>`).join('')}
+          </div>
+        `;
+        actions = `
+          <button class="btn-yes" data-action="yes">✓ YES <span class="kbd">→</span></button>
+          <button class="btn-no" data-action="no">✗ Toinen <span class="kbd">←</span></button>
+          <button class="btn-skip" data-action="skip">Skip <span class="kbd">S</span></button>
+        `;
+        break;
+      }
+      case 'pick-font': {
+        body = `
+          ${renderAiNote()}
+          <div class="font-chips">
+            ${card.fonts.map((f, i) => `<span class="font-chip ${f.ai ? 'ai' : ''} ${collected[card.field] === f.family ? 'selected' : ''}" data-font="${f.family}">${i + 1}. ${f.family}<span class="font-chip-context">${f.context || ''}</span></span>`).join('')}
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label>tai kirjoita fontin nimi</label>
+            <input type="text" id="manual-font" placeholder="Inter" value="${collected[card.field] || ''}">
+          </div>
+        `;
+        actions = `
+          <button class="btn-primary" data-action="confirm">Vahvista <span class="kbd">↵</span></button>
+          <button class="btn-skip" data-action="skip">Skip <span class="kbd">S</span></button>
+        `;
+        break;
+      }
+      case 'review': {
+        const sw = (hex) => hex ? `<span class="review-swatch" style="background:${hex}"></span>` : '';
+        body = `
+          <div class="review-grid">
+            <div class="review-item"><div class="review-label">Primary</div><div class="review-value ${collected.primary ? '' : 'empty'}">${sw(collected.primary)}${collected.primary || '(none)'}</div></div>
+            <div class="review-item"><div class="review-label">Secondary</div><div class="review-value ${collected.secondary ? '' : 'empty'}">${sw(collected.secondary)}${collected.secondary || '(none)'}</div></div>
+            <div class="review-item" style="grid-column:1/-1"><div class="review-label">Brand palette</div><div class="review-value ${(collected.brandPalette || []).length ? '' : 'empty'}">${(collected.brandPalette || []).length ? collected.brandPalette.map(h => sw(h) + h).join('  ') : '(none)'}</div></div>
+            <div class="review-item" style="grid-column:1/-1"><div class="review-label">Logo URL</div><div class="review-value ${collected.logoUrl ? '' : 'empty'}">${collected.logoUrl || '(none)'}</div></div>
+            <div class="review-item"><div class="review-label">Primary font</div><div class="review-value ${collected.primaryFont ? '' : 'empty'}">${collected.primaryFont || '(none)'}</div></div>
+            <div class="review-item"><div class="review-label">Secondary font</div><div class="review-value ${collected.secondaryFont ? '' : 'empty'}">${collected.secondaryFont || '(none)'}</div></div>
+          </div>
+          <div class="field">
+            <label>Notes (valinnainen)</label>
+            <textarea id="notes" placeholder="anything noteworthy">${collected.notes || ''}</textarea>
+          </div>
+        `;
+        actions = `
+          <button class="btn-yes" data-action="save">💾 Tallenna ja seuraava <span class="kbd">↵</span></button>
+          <button class="btn-secondary" data-action="back">← Takaisin</button>
+        `;
+        break;
+      }
+    }
+
+    return `
+      <div class="card-step-bar">${bar}</div>
+      <div class="card-eyebrow">${eyebrow}</div>
+      <h2 class="card-title">${card.title}</h2>
+      <p class="card-subtitle">${card.subtitle}</p>
+      ${refLinks}
+      <div class="card-body">${body}</div>
+      ${renderCommentField(card)}
+      <div class="card-actions">${actions}</div>
+      <div class="hints">
+        <span><span class="kbd">→</span> yes</span>
+        <span><span class="kbd">←</span> no</span>
+        <span><span class="kbd">S</span> skip</span>
+        <span><span class="kbd">↵</span> confirm</span>
+        <span><span class="kbd">B</span> back</span>
+      </div>
+    `;
+  }
+
+  function fieldKeyOf(card) {
+    return card.field || card.cardKey || null;
+  }
+
+  function renderCommentField(card) {
+    if (card.type === 'review') return '';
+    const key = fieldKeyOf(card);
+    if (!key) return '';
+    const meta = state.current.meta[key] || {};
+    return `<div class="field" style="margin-top:12px">
+      <label style="display:flex;justify-content:space-between"><span>Kommentti (valinnainen, esim. miksi dembrandt missasi)</span><span style="color:var(--muted);font-size:10px">${meta.verdict || ''}</span></label>
+      <input type="text" id="comment-input" placeholder="esim. 'dembrandt valitsi footer-bg:n primaryksi'" value="${meta.comment || ''}" style="font-family:inherit;font-size:12px">
+    </div>`;
+  }
+
+  function setMeta(field, verdict, extras = {}) {
+    if (!field) return;
+    const prev = state.current.meta[field] || {};
+    state.current.meta[field] = { ...prev, verdict, ...extras };
+  }
+  function setMetaComment(field, comment) {
+    if (!field) return;
+    const prev = state.current.meta[field] || {};
+    state.current.meta[field] = { ...prev, comment };
+  }
+
+  function renderPaletteGrid(palette, opts = {}) {
+    if (!palette || palette.length === 0) return '<div class="empty">no palette extracted</div>';
+    return `<div class="swatch-grid">${palette.map((p, i) => {
+      const sel = (opts.multi ? (opts.selectedMulti || []).includes(p.hex) : opts.selected === p.hex) ? 'selected' : '';
+      const num = opts.numbered && i < 9 ? `<span class="swatch-pick-num">${i + 1}</span>` : '';
+      const aiCls = p.ai ? ' ai' : '';
+      const aiBadge = p.ai ? `<span class="ai-badge" title="${p.aiLabel || 'AI'}">AI</span>` : '';
+      const meta = p.ai
+        ? `<div class="swatch-pick-meta">${aiBadge} ${num}</div>`
+        : `<div class="swatch-pick-meta">${p.count || ''}× ${p.confidence || ''} ${num}</div>`;
+      return `<div class="swatch-pick${aiCls} ${sel}" data-hex="${p.hex}" title="${p.aiLabel || ''}">
+        <div class="swatch-pick-color" style="background:${p.hex}"></div>
+        <div class="swatch-pick-hex">${p.hex}</div>
+        ${meta}
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  function renderAiNote() {
+    const ai = state.current.aiSuggestions;
+    if (!ai || ai.error || ai.enabled === false) return '';
+    const parts = [];
+    if (ai.primary_description) parts.push(`primary: ${ai.primary_description}`);
+    if (ai.secondary_description) parts.push(`secondary: ${ai.secondary_description}`);
+    if (ai.logo_description) parts.push(`logo: ${ai.logo_description}`);
+    if (parts.length === 0) return '';
+    return `<div class="ai-note"><strong>AI (${ai.provider}):</strong> ${parts.join(' · ')}</div>`;
+  }
+
+  function renderRefLinks() {
+    const url = state.current.url;
+    if (!url) return '';
+    const domain = state.current.domain;
+    const enc = encodeURIComponent;
+    return `<div class="ref-links">
+      <a href="${url}" target="_blank" rel="noopener">Open site</a>
+      <a href="https://www.google.com/search?q=${enc(domain + ' brand guidelines')}" target="_blank" rel="noopener">Brand guidelines</a>
+      <a href="https://www.google.com/search?q=${enc(domain + ' brand colors hex')}" target="_blank" rel="noopener">Colors</a>
+      <a href="https://www.google.com/search?q=${enc(domain + ' logo svg')}" target="_blank" rel="noopener">Logo</a>
+      <a href="https://brandfetch.com/${domain}" target="_blank" rel="noopener">Brandfetch</a>
+    </div>`;
+  }
+
+  // ---- card actions ----
+  function bindCard(card) {
+    const panel = document.getElementById('card-panel');
+    panel.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => doAction(card, btn.dataset.action));
+    });
+
+    panel.querySelectorAll('.swatch-pick').forEach(el => {
+      el.addEventListener('click', () => {
+        const hex = el.dataset.hex;
+        const collected = state.current.collected;
+        if (card.type === 'multi-pick') {
+          collected[card.field] = collected[card.field] || [];
+          const i = collected[card.field].indexOf(hex);
+          if (i >= 0) collected[card.field].splice(i, 1);
+          else collected[card.field].push(hex);
+          el.classList.toggle('selected');
+          const cEl = document.getElementById('multi-count');
+          if (cEl) cEl.textContent = collected[card.field].length;
+        } else {
+          collected[card.field] = hex;
+          renderCard();
+        }
+      });
+    });
+
+    panel.querySelectorAll('.font-chip').forEach(el => {
+      el.addEventListener('click', () => {
+        const f = el.dataset.font;
+        state.current.collected[card.field] = f;
+        renderCard();
+      });
+    });
+
+    const markup = document.getElementById('logo-markup');
+    if (markup) {
+      markup.addEventListener('input', () => {
+        const parsed = parseLogoMarkup(markup.value);
+        document.getElementById('markup-hint').textContent = parsed.note + (parsed.url ? ' → ' + parsed.url : '');
+        state.current.collected.logoMarkup = markup.value;
+        if (parsed.url) {
+          const urlInput = document.getElementById('logo-url');
+          if (urlInput && !urlInput.value) urlInput.value = parsed.url;
+        }
+      });
+    }
+
+    const cm = document.getElementById('comment-input');
+    if (cm) {
+      cm.addEventListener('input', () => {
+        const key = fieldKeyOf(card);
+        if (key) setMetaComment(key, cm.value);
+      });
+    }
+  }
+
+  function parseLogoMarkup(markup) {
+    if (!markup || !markup.trim()) return { url: null, note: '' };
+    const m = markup.match(/<img[^>]+src\s*=\s*['"]([^'"]+)['"]/i);
+    if (m) return { url: m[1], note: 'img src löytyi' };
+    if (markup.match(/<svg[\s>]/i)) return { url: null, note: 'inline SVG (ei URLia, tallennetaan markupina)' };
+    const href = markup.match(/<(?:use|image)[^>]+(?:xlink:)?href\s*=\s*['"]([^'"]+)['"]/i);
+    if (href) return { url: href[1], note: 'use/image href löytyi' };
+    return { url: null, note: 'ei img src tai svg löytynyt' };
+  }
+
+  function doAction(card, action) {
+    const collected = state.current.collected;
+    if (action === 'back') {
+      const idx = state.current.cardIndex - 1;
+      if (idx >= 0) { state.current.cardIndex = idx; renderCard(); }
+      return;
+    }
+    if (action === 'skip') {
+      collected[(card.cardKey || card.field) + ':done'] = 'skipped';
+      const k = fieldKeyOf(card);
+      if (k) setMeta(k, 'skipped');
+      animateOut('left');
+      setTimeout(() => gotoCard(card.next || card.nextOnYes), 180);
+      return;
+    }
+    if (card.type === 'confirm-color') {
+      if (action === 'yes') {
+        collected[card.field] = card.candidate;
+        setMeta(card.field, 'correct', { source: 'semantic' });
+        collected[(card.cardKey || card.field) + ':done'] = true;
+        animateOut('right');
+        setTimeout(() => gotoCard(card.nextOnYes), 180);
+      } else {
+        // mark provisional: dembrandt's semantic guess was wrong; the value
+        // will be assigned in the pick card. Track that this came after a no.
+        setMeta(card.field, 'pending', { dembrandtWasWrong: true });
+        animateOut('left');
+        setTimeout(() => gotoCard(card.nextOnNo), 180);
+      }
+      return;
+    }
+    if (card.type === 'pick-color') {
+      const manual = document.getElementById('manual-hex')?.value?.trim();
+      let chosen = collected[card.field];
+      if (manual) {
+        const m = normHex(manual) || manual;
+        if (m !== collected[card.field]) chosen = m;
+        collected[card.field] = chosen;
+      }
+      if (!chosen) { toast('valitse swatch tai kirjoita hex', 'amber'); return; }
+      const inPalette = (card.palette || []).some(p => p.hex === chosen);
+      const prevMeta = state.current.meta[card.field] || {};
+      const wasWrong = prevMeta.dembrandtWasWrong;
+      let verdict;
+      if (manual && !inPalette) verdict = 'added';
+      else if (wasWrong) verdict = 'in_palette_dembrandt_missed';
+      else verdict = 'in_palette';
+      setMeta(card.field, verdict, { source: manual && !inPalette ? 'manual' : 'palette' });
+      collected[(card.cardKey || card.field) + ':done'] = true;
+      animateOut('right');
+      setTimeout(() => gotoCard(card.next), 180);
+      return;
+    }
+    if (card.type === 'multi-pick') {
+      const sel = collected[card.field] || [];
+      const palHex = new Set((card.palette || []).map(p => p.hex));
+      const items = sel.map(h => ({ hex: h, source: palHex.has(h) ? 'palette' : 'added' }));
+      setMeta(card.field, 'complete', { items });
+      collected[(card.cardKey || card.field) + ':done'] = true;
+      animateOut('right');
+      setTimeout(() => gotoCard(card.next), 180);
+      return;
+    }
+    if (card.type === 'confirm-logo') {
+      const i = collected._logoCandidateIdx || 0;
+      if (action === 'yes') {
+        collected[card.field] = card.logos[i].url;
+        setMeta(card.field, i === 0 ? 'correct' : 'in_palette', { candidateIndex: i, source: card.logos[i].label });
+        collected[(card.cardKey || card.field) + ':done'] = true;
+        animateOut('right');
+        setTimeout(() => gotoCard(card.nextOnYes), 180);
+      } else {
+        if (i + 1 < card.logos.length) {
+          collected._logoCandidateIdx = i + 1;
+          renderCard();
+        } else {
+          setMeta(card.field, 'pending', { dembrandtCandidatesExhausted: true });
+          animateOut('left');
+          setTimeout(() => gotoCard(card.nextOnNo), 180);
+        }
+      }
+      return;
+    }
+    if (card.type === 'logo-paste') {
+      const url = document.getElementById('logo-url')?.value?.trim();
+      const markup = document.getElementById('logo-markup')?.value?.trim();
+      if (url) collected.logoUrl = url;
+      if (markup) collected.logoMarkup = markup;
+      if (!url && !markup) {
+        toast('liitä URL tai markup, tai paina Skip', 'amber');
+        return;
+      }
+      setMeta('logoUrl', 'added', { source: url ? 'pasted-url' : 'markup' });
+      collected[(card.cardKey || card.field) + ':done'] = true;
+      animateOut('right');
+      setTimeout(() => gotoCard(card.next), 180);
+      return;
+    }
+    if (card.type === 'confirm-font') {
+      if (action === 'yes') {
+        collected[card.field] = card.candidate.family;
+        setMeta(card.field, 'correct', { source: 'top-candidate' });
+        collected[(card.cardKey || card.field) + ':done'] = true;
+        animateOut('right');
+        setTimeout(() => gotoCard(card.nextOnYes), 180);
+      } else {
+        setMeta(card.field, 'pending', { dembrandtTopWrong: true });
+        animateOut('left');
+        setTimeout(() => gotoCard(card.nextOnNo), 180);
+      }
+      return;
+    }
+    if (card.type === 'pick-font') {
+      const manual = document.getElementById('manual-font')?.value?.trim();
+      if (manual) collected[card.field] = manual;
+      if (!collected[card.field]) { toast('valitse fontti tai kirjoita nimi', 'amber'); return; }
+      const chosen = collected[card.field];
+      const inList = (card.fonts || []).some(f => f.family === chosen);
+      const prevMeta = state.current.meta[card.field] || {};
+      const wasWrong = prevMeta.dembrandtTopWrong;
+      let verdict;
+      if (manual && !inList) verdict = 'added';
+      else if (wasWrong) verdict = 'in_palette_dembrandt_missed';
+      else verdict = 'in_palette';
+      setMeta(card.field, verdict, { source: manual && !inList ? 'manual' : 'list' });
+      collected[(card.cardKey || card.field) + ':done'] = true;
+      animateOut('right');
+      setTimeout(() => gotoCard(card.next), 180);
+      return;
+    }
+    if (card.type === 'review') {
+      if (action === 'save') return saveAndNext();
+      if (action === 'back') {
+        state.current.cardIndex = Math.max(0, state.current.cardIndex - 1);
+        renderCard();
+      }
+    }
+  }
+
+  function animateOut(dir) {
+    const panel = document.getElementById('card-panel');
+    const card = panel.querySelector('.card');
+    if (card) card.classList.add(dir === 'right' ? 'exit-right' : 'exit-left');
+  }
+
+  // ---- save ----
+  async function saveAndNext() {
+    const collected = state.current.collected || {};
+    const notesEl = document.getElementById('notes');
+    if (notesEl) collected.notes = notesEl.value;
+
+    const payload = {
+      url: state.current.url,
+      viewport: state.viewport,
+      primary: collected.primary || null,
+      secondary: collected.secondary || null,
+      brandPalette: collected.brandPalette || [],
+      logoUrl: collected.logoUrl || null,
+      logoMarkup: collected.logoMarkup || null,
+      primaryFont: collected.primaryFont || null,
+      secondaryFont: collected.secondaryFont || null,
+      notes: collected.notes || '',
+      meta: state.current.meta || {},
+      labeledWith: 'tinder',
+    };
+
+    const elapsed = state.current.startTime ? Math.round((Date.now() - state.current.startTime) / 1000) : null;
+    try {
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('save failed');
+      state.stats.sitesDone++;
+      if (elapsed) {
+        state.stats.totalMs += elapsed * 1000;
+        state.stats.perSite.push({ domain: state.current.domain, seconds: elapsed });
+        const fastest = Math.min(...state.stats.perSite.map(s => s.seconds));
+        const isFastest = elapsed === fastest && state.stats.perSite.length > 1;
+        toast(`✓ ${state.current.domain} tallennettu · ${elapsed}s${isFastest ? ' · uusi ennätys!' : ''}`, 'green');
+      } else {
+        toast(`✓ ${state.current.domain} tallennettu`, 'green');
+      }
+    } catch (e) {
+      toast('tallennus epäonnistui: ' + e.message);
+      return;
+    }
+    loadNextSite();
+  }
+
+  // ---- main loop ----
+  async function loadNextSite() {
+    stopTimer();
+    const status = await loadQueue();
+    if (!status.next) {
+      document.getElementById('screenshot-panel').innerHTML = '<div class="empty">queue complete</div>';
+      document.getElementById('card-panel').innerHTML = `<div class="card"><h2 class="card-title">Kaikki tehty</h2><p class="card-subtitle">Labeloit ${state.stats.sitesDone} sivua. Keskimäärin ${state.stats.perSite.length ? Math.round(state.stats.totalMs / state.stats.perSite.length / 1000) : '?'}s per sivu. Aja seuraavaksi <code>npm run gold:run</code>.</p></div>`;
+      document.getElementById('status-text').textContent = 'done';
+      return;
+    }
+    state.current.url = status.next.url;
+    state.current.domain = domainOf(status.next.url);
+    state.current.hint = status.next.hint;
+    state.current.collected = {};
+    state.current.meta = {};
+    state.current.cardIndex = 0;
+    state.current.startTime = Date.now();
+    state.queueIndex = status.done;
+    state.queue = status.remaining || [];
+    document.getElementById('status-text').textContent = `${state.current.domain}  (${status.done + 1}/${status.total})`;
+    document.getElementById('screenshot-panel').innerHTML = `<div class="empty spinner">extracting ${state.current.domain}...</div>`;
+    document.getElementById('card-panel').innerHTML = '<div class="empty spinner">odotetaan extraktiota...</div>';
+
+    startTimer();
+
+    try {
+      const extraction = await ensureExtraction(state.current.url);
+      state.current.extraction = extraction;
+      document.getElementById('screenshot-panel').innerHTML = extraction._screenshotPath
+        ? `<img src="/api/screenshot?path=${encodeURIComponent(extraction._screenshotPath)}" alt="">`
+        : '<div class="empty">no screenshot</div>';
+      state.current.aiSuggestions = null;
+      state.current.cards = buildCards(extraction);
+      state.current.cardIndex = 0;
+      renderCard();
+
+      // kick off AI suggester in background; re-render when ready
+      triggerAiSuggest(state.current.url, extraction._screenshotPath);
+
+      // prefetch next 2 sites
+      const nextTwo = state.queue.slice(1, 3).map(d => 'https://' + d).filter(Boolean);
+      if (nextTwo.length) triggerPrefetch(nextTwo);
+    } catch (e) {
+      document.getElementById('card-panel').innerHTML = `<div class="card"><h2 class="card-title">Extraktio epäonnistui</h2><p class="card-subtitle">${e.message}</p><div class="card-actions"><button class="btn-secondary" onclick="loadNextSite()">Yritä uudelleen</button><button class="btn-danger" id="btn-skip-fail">Skip</button></div></div>`;
+      document.getElementById('btn-skip-fail').addEventListener('click', skipSite);
+    }
+  }
+
+  // ---- timer ----
+  let timerInterval = null;
+  function startTimer() {
+    stopTimer();
+    timerInterval = setInterval(() => {
+      const t = state.current.startTime;
+      if (!t) return;
+      const s = Math.round((Date.now() - t) / 1000);
+      document.getElementById('timer').textContent = s + 's';
+    }, 500);
+  }
+  function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  // ---- skip ----
+  async function skipSite() {
+    if (!state.current.url) return;
+    if (!confirm('Skip ' + state.current.domain + '?')) return;
+    await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: state.current.url, skipped: true, notes: '(skipped)' }),
+    });
+    loadNextSite();
+  }
+  document.getElementById('btn-skip-site').addEventListener('click', skipSite);
+
+  // ---- keyboard ----
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const card = state.current.cards[state.current.cardIndex];
+        if (card) doAction(card, 'confirm');
+      }
+      return;
+    }
+    const card = state.current.cards[state.current.cardIndex];
+    if (!card) return;
+    if (e.key === 'ArrowRight') doAction(card, 'yes');
+    else if (e.key === 'ArrowLeft') doAction(card, 'no');
+    else if (e.key === 'Enter') doAction(card, card.type === 'review' ? 'save' : (card.type === 'confirm-color' || card.type === 'confirm-logo' || card.type === 'confirm-font' ? 'yes' : 'confirm'));
+    else if (e.key.toLowerCase() === 's') doAction(card, 'skip');
+    else if (e.key.toLowerCase() === 'b' || e.key === 'Backspace') doAction(card, 'back');
+    else if (/^[1-9]$/.test(e.key)) {
+      const idx = Number(e.key) - 1;
+      const panel = document.getElementById('card-panel');
+      const items = panel.querySelectorAll('.swatch-pick, .font-chip');
+      if (items[idx]) items[idx].click();
+    }
+  });
+
+  loadNextSite();
+  </script>
+</body>
+</html>

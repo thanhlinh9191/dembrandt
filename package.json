@@ -20,7 +20,13 @@
     "local-ui": "cd local-ui && npm start",
     "qa:baseline": "node test/qa.mjs --baseline",
     "qa:diff": "node test/qa.mjs --diff",
-    "qa:site": "node test/qa.mjs --site"
+    "qa:site": "node test/qa.mjs --site",
+    "gold:label": "node tools/gold-label.mjs",
+    "gold:run": "node tools/gold-run.mjs",
+    "gold:judge": "node tools/gold-ai-judge.mjs",
+    "gold:tune": "node tools/gold-tune.mjs",
+    "gold:cluster": "node tools/gold-cluster.mjs",
+    "gold:analyze": "node tools/gold-analyze.mjs"
   },
   "keywords": [
     "design-tokens",
