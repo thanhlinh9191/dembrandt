@@ -13,6 +13,7 @@ import ora from "ora";
 import { chromium, firefox } from "playwright-core";
 import { extractBranding } from "./lib/extractors/index.js";
 import { displayResults } from "./lib/formatters/terminal.js";
+import { color } from "./lib/formatters/theme.js";
 import { toW3CFormat } from "./lib/formatters/w3c.js";
 import { generatePDF } from "./lib/formatters/pdf.js";
 import { generateDesignMd } from "./lib/formatters/markdown.js";
@@ -213,6 +214,9 @@ program
       // Convert to W3C format if requested
       const outputData = opts.dtcg ? toW3CFormat(result) : result;
 
+      // Collect "saved to" notices and print them after the results below
+      const savedNotices = [];
+
       // Save JSON output if --save-output or --dtcg is specified
       if (opts.saveOutput || opts.dtcg) {
         try {
@@ -230,16 +234,19 @@ program
           const filepath = join(outputDir, filename);
           writeFileSync(filepath, JSON.stringify(outputData, null, 2));
 
-          console.log(
+          const jsonLabel = opts.dtcg
+            ? 'DTCG tokens saved (--dtcg)'
+            : 'JSON saved (--save-output)';
+          savedNotices.push(
             chalk.dim(
-              `💾 JSON saved to: ${chalk.hex('#8BE9FD')(
+              `💾 ${jsonLabel}: ${color.info(
                 `output/${domain}/${filename}`
               )}`
             )
           );
         } catch (err) {
           console.log(
-            chalk.hex('#FFB86C')(`⚠ Could not save JSON file: ${err.message}`)
+            color.warning(`! Could not save JSON file: ${err.message}`)
           );
         }
       }
@@ -258,9 +265,9 @@ program
           spinner.start("Generating PDF brand guide...");
           await generatePDF(result, pdfPath, browser);
           spinner.stop();
-          console.log(
+          savedNotices.push(
             chalk.dim(
-              `PDF saved to: ${chalk.hex('#8BE9FD')(
+              `💾 Brand guide PDF saved (--brand-guide): ${color.info(
                 `output/${pdfDomain}/${pdfFilename}`
               )}`
             )
@@ -268,7 +275,7 @@ program
         } catch (err) {
           spinner.stop();
           console.log(
-            chalk.hex('#FFB86C')(`Could not generate PDF: ${err.message}`)
+            color.warning(`Could not generate PDF: ${err.message}`)
           );
         }
       }
@@ -281,27 +288,40 @@ program
           mkdirSync(mdDir, { recursive: true });
           const mdPath = join(mdDir, "DESIGN.md");
           writeFileSync(mdPath, generateDesignMd(result));
-          console.log(
+          savedNotices.push(
             chalk.dim(
-              `DESIGN.md saved to: ${chalk.hex('#8BE9FD')(
+              `💾 DESIGN.md saved (--design-md): ${color.info(
                 `output/${mdDomain}/DESIGN.md`
               )}`
             )
           );
         } catch (err) {
           console.log(
-            chalk.hex('#FFB86C')(`Could not generate DESIGN.md: ${err.message}`)
+            color.warning(`Could not generate DESIGN.md: ${err.message}`)
           );
         }
       }
 
       // Output to terminal
+      const summaryLine =
+        color.accent('✨ Analysis summary: ') +
+        chalk.dim(
+          `${result.colors?.palette?.length ?? 0} colors, ` +
+          `${result.typography?.styles?.length ?? 0} text styles, ` +
+          `${result.breakpoints?.length ?? 0} breakpoints.`
+        );
       if (opts.jsonOnly) {
         console.log = originalConsoleLog;
         console.log(JSON.stringify(outputData, null, 2));
+        // Keep stdout pure JSON: summary and notices go to stderr
+        console.error(summaryLine);
+        for (const notice of savedNotices) console.error(notice);
       } else {
         console.log();
         displayResults(result);
+        console.log();
+        console.log(summaryLine);
+        for (const notice of savedNotices) console.log(notice);
       }
     } catch (err) {
       spinner.fail("Failed");
