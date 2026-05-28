@@ -26,6 +26,12 @@ test-output/
 !examples/*.json
 !test/sites*.json
 
+# Gold benchmark: version source of truth, ignore generated artifacts
+!test/gold-queue.json
+!test/gold/*/expected.json
+test/scores/
+test/analysis/
+
 # Coverage
 coverage/
 
