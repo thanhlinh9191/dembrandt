@@ -334,6 +334,8 @@ export interface ExtractOptions {
   screenSize?: string;
   cookie?: string;
   header?: string;
+  /** Internal: collect raw :root tokens + interactive-state styles to a sidecar. */
+  teach?: boolean;
   /** Injected CLI version, surfaced as meta.dembrandtVersion. */
   _version?: string;
 }

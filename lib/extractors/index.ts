@@ -7,6 +7,7 @@ import { extractTypography } from './typography.js';
 import { extractSpacing, extractBorderRadius, extractBorders, extractShadows } from './spacing.js';
 import { extractButtonStyles, extractInputStyles, extractLinkStyles, extractBadgeStyles } from './components.js';
 import { extractBreakpoints, detectIconSystem, detectFrameworks, extractGradients, extractMotion } from './breakpoints.js';
+import { extractTeach } from './teach.js';
 import { extractWcagPairs } from './colors.js';
 import { SCHEMA_VERSION } from '../version.js';
 import type { ExtractOptions, BrandingResult, Spinner } from '../types.js';
@@ -1101,6 +1102,12 @@ export async function extractBranding(url: string, spinner: Spinner, browser: an
       try {
         await page.screenshot({ path: options.screenshotPath, fullPage: false });
       } catch (e) { degraded.push('screenshot'); }
+    }
+
+    // Internal, opt-in: raw :root tokens + interactive-state styles → sidecar.
+    if (options.teach) {
+      try { (result as any)._teach = await extractTeach(page); }
+      catch { (result as any)._teach = null; }
     }
 
     if (options.includeRawColors) {

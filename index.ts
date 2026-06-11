@@ -7,7 +7,7 @@
  * from any website using Playwright.
  */
 
-import { program } from "commander";
+import { program, Option } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { chromium, firefox } from "playwright-core";
@@ -57,6 +57,8 @@ program
   .option("--no-sandbox", "Disable browser sandbox (needed for Docker/CI)")
   .option("--raw-colors", "Include pre-filter raw colors in JSON output")
   .option("--screenshot <path>", "Save a viewport screenshot of the page (not full-page)")
+  // Internal, undocumented flag. Hidden from --help; not part of the product surface.
+  .addOption(new Option("--teach").hideHelp())
   .option("--wcag", "Analyze WCAG contrast ratios between palette colors")
   .option("--crawl [n]", "Auto-discover and extract up to N pages via DOM links (default: 5); combine with --sitemap to use sitemap discovery instead", (v: any) => {
     if (v === undefined || v === true) return 5;
@@ -157,6 +159,7 @@ program
             timezoneId: opts.timezone,
             acceptLanguage: opts.acceptLanguage,
             screenSize: opts.screenSize,
+            teach: opts.teach,
             _version: version,
           });
 
@@ -257,6 +260,22 @@ program
       // Strip raw colors unless --raw-colors flag is set
       if (!opts.rawColors && result.colors && result.colors.rawColors) {
         delete result.colors.rawColors;
+      }
+
+      // Pull the internal payload off the result before it can reach stdout or
+      // the normal saved output, and write it to its own sidecar.
+      const teachData = (result as any)._teach;
+      delete (result as any)._teach;
+      if (opts.teach && teachData) {
+        try {
+          const tDomain = new URL(url).hostname.replace("www.", "");
+          const tStamp = new Date().toISOString().replace(/[:.]/g, "-").split(".")[0];
+          const tDir = join(process.cwd(), "output", tDomain);
+          mkdirSync(tDir, { recursive: true });
+          const tFile = `${tStamp}_v${version}.teach.json`;
+          writeFileSync(join(tDir, tFile), JSON.stringify({ url: result.url, extractedAt: new Date().toISOString(), ...teachData }, null, 2));
+          if (!opts.jsonOnly) console.error(chalk.dim(`  teach → output/${tDomain}/${tFile}`));
+        } catch { /* non-fatal */ }
       }
 
       // Convert to W3C format if requested
