@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.5] - 2026-06-14
+
+### Fixed
+- Drift comparison now ignores `confidence: "low"` radius and shadow tokens — single-use, margin-of-detection elements the extractor is unsure about that surfaced inconsistently between extractions and produced phantom drift
+
+### Added
+- The CLI run summary now reflects the active flags and explicit paths of the run (DEM-99)
+
 ## [0.19.4] - 2026-06-14
 
 ### Fixed
