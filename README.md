@@ -151,6 +151,14 @@ npm run install-browser   # chromium (default)
 npx playwright@$(node -p "require('playwright-core/package.json').version") install firefox
 ```
 
+If you get `Executable doesn't exist` when using `--browser firefox`, the version resolved above may not match the `playwright-core` bundled inside the global dembrandt install (which can happen if you run the command from inside a project that pins a different version). Use `playwright-core` directly with the exact version dembrandt ships:
+
+```bash
+npx playwright-core@$(node -p "require('playwright-core/package.json').version") install firefox
+```
+
+Run this from your home directory (outside any Node.js project) so `require` resolves against the global dembrandt install rather than a local `node_modules`.
+
 ### Connect to an existing browser (CDP)
 
 Skip the bundled browser entirely and drive an already-running Chromium over the DevTools Protocol. Useful in CI or containers where a browser is already up, and it needs no local browser download at all:
