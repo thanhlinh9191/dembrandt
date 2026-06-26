@@ -503,7 +503,8 @@ program
           if (byteSize > MAX_BYTES) {
             console.error(color.warning(`! Extraction too large to sync (${byteSize} bytes > ${MAX_BYTES}). Skipping cloud upload.`));
           } else {
-            const syncRes = await fetch("https://dembrandt.com/api/extractions", {
+            const apiBase = process.env.DEMBRANDT_API_URL ?? "https://www.dembrandt.com";
+            const syncRes = await fetch(`${apiBase}/api/extractions`, {
               method: "POST",
               headers: {
                 "Authorization": `Bearer ${apiKey}`,
