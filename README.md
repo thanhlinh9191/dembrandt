@@ -54,11 +54,13 @@ npx skills add dembrandt/dembrandt-skills
 
 Load extractions, track token drift, and compare snapshots. **[dembrandt.com/app](https://www.dembrandt.com/app)**
 
-* **Drift tracking.** Pin a snapshot as your baseline. Run another extraction later. Get a visual report of what changed.
-* **Visual diff.** Color swatches, before/after values, delta scores per category.
-* **Snapshot history.** GitHub-style calendar per domain.
+* **Automatic drift tracking from CI.** Generate an API key at [dembrandt.com/app/api-keys](https://www.dembrandt.com/app/api-keys), then pass `--key` to the CLI. Every run uploads a snapshot to your account and scores it against the previous one for that domain. Wire into GitHub Actions or any CI runner and every deploy records itself.
+* **Pin a baseline.** Mark any snapshot as your reference. Every subsequent extraction is automatically scored against it.
+* **Visual diff.** Color swatches, before/after values, delta scores per category: colors, typography, spacing, radius, shadows.
+* **Snapshot timeline.** Proportional timeline per domain — scrub across any date range from days to years.
+* **Compare side by side.** Load multiple extractions into one view: two releases, two sites, or two surfaces.
 * **Copy tokens.** Paste values straight into Copilot, Claude, or Cursor.
-* **No login.** Your data stays in the browser. Drift is computed locally — nothing is sent to any server.
+* **No login required for local use.** Data stays in the browser. Sign in with GitHub to enable cloud sync.
 
 ## Recipes
 
@@ -93,6 +95,7 @@ dembrandt example.com --crawl 5        # Analyze 5 pages (homepage + 4 discovere
 dembrandt example.com --sitemap        # Discover pages from sitemap.xml instead of DOM links
 dembrandt example.com --crawl 10 --sitemap # Combine: up to 10 pages discovered via sitemap
 dembrandt example.com --no-sandbox     # Disable Chromium sandbox (required for Docker/CI)
+dembrandt example.com --key dmb_···   # Push snapshot to your Dembrandt account; auto-scored against the previous snapshot for that domain
 dembrandt example.com --browser=firefox # Use Firefox instead of Chromium (better for Cloudflare bypass)
 dembrandt example.com --wcag           # WCAG 2.1 contrast analysis — real DOM pairs, AA/AAA grades
 dembrandt example.com --stealth        # Opt-in anti-detection: navigator spoofing + human mouse simulation (use only when authorized)
