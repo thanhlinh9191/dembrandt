@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.21.0] - 2026-06-29
 
 ### Changed
 - Hidden-content reveal (open click-toggle menus/dropdowns, advance carousels, then re-scan) is now standard and on by default. Closed panels and off-screen slides hold brand colours that the static scan never sees, so this materially improves colour recall. Set `DEMBRANDT_DISABLE_REVEAL=1` to skip it, which QA baselines do to stay deterministic
@@ -11,6 +11,26 @@
 
 ### Removed
 - `--menus` opt-in flag. The reveal pass it gated is now the default, so the flag is redundant
+
+## [0.20.1] - 2026-06-26
+
+### Added
+- `--stealth` spoofs the WebGL renderer and audio fingerprint so extraction survives stricter bot detection (#100)
+
+### Fixed
+- Near-white primary and transparent secondary colours are guarded against, so washed-out or invisible picks no longer surface as brand colours (DEM-112, DEM-113, #103)
+- Cloud upload targets `www.dembrandt.com` and is overridable via the `DEMBRANDT_API_URL` env var
+
+## [0.20.0] - 2026-06-23
+
+### Added
+- `--key` pushes each extraction to your Dembrandt account and auto-scores it against the previous snapshot for that domain (#105)
+- `--ai` predicts the brand primary colour with a trained ML model, replacing the heuristic when enabled (roughly 2x accuracy)
+- Platform-specific colour hints: `theme-color`, `mask-icon`, and `msapplication` meta values now feed the palette (#101)
+
+### Fixed
+- SVG logo fill/stroke colours are extracted from the logo's own elements (DEM-111, #102)
+- Core hardening and internal refinements across extraction (#99)
 
 ## [0.19.5] - 2026-06-14
 
