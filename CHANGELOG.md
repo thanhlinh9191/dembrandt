@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.23.1] - 2026-07-10
+
+### Fixed
+- MCP server: `@modelcontextprotocol/sdk` and `zod` ship as regular dependencies. As optional peers they broke the documented install — `npx -y --package dembrandt dembrandt-mcp` exited with McpDepsMissingError on every clean machine (0.21.0–0.23.0), and npx never installs optional peers (#120)
+
 ## [0.23.0] - 2026-07-10
 
 ### Changed
